@@ -31,7 +31,7 @@ def get_custom_descriptors(df_in):
 
 def pack_normalized_descriptors_to_fingerprint(descriptors: [float], bit_size=512, density=0.3) -> int:
     """
-    :param descriptors: list of numbers between 0.0 and 1.0 that characterise a molecule
+    :param descriptors: list of numbers (roughly) between 0.0 and 1.0 that characterise a molecule
     :param bit_size: size of the fingerprint in bits
     :param density: approximate density of '1's in the fingerprint
     :return: fingerprint as a number
@@ -85,10 +85,11 @@ if __name__ == '__main__':
     indigo = Indigo()
     bingo = Bingo.createDatabaseFile(indigo, path.join('tempdb'), 'molecule', '')
     indigo.setOption("fp-sim-qwords", fp_size_bytes / 8)
-    indigo.setOption("fp-ord-qwords", 0)
-    indigo.setOption("fp-tau-qwords", 0)
-    indigo.setOption("fp-any-qwords", 0)
     indigo.setOption("fp-ext-enabled", True)
+
+    indigo.setOption("fp-ord-qwords", 0)  # optional
+    indigo.setOption("fp-tau-qwords", 0)  # optional
+    indigo.setOption("fp-any-qwords", 0)  # optional
 
     molecules = []
     for id in range(len(df_descriptors)):
@@ -108,3 +109,21 @@ if __name__ == '__main__':
             similarity = indigo.similarity(m1, m2)
             print("%.4f  " % similarity, end="")
         print()
+
+    print("Bingo similarity search:")
+    query_id = 0  # use the fist molecule as a query for an example
+    smiles = df_descriptors.ix[query_id, 'Structure']
+    print("Query: %s" % smiles)
+
+    descriptors = list(df_descriptors.ix[query_id])[2:]
+    normalized = [(f - min_bounds[i]) / (max_bounds[i] - min_bounds[i]) for i, f in enumerate(descriptors)]
+    fp = pack_normalized_descriptors_to_fingerprint(normalized, density=0.3, bit_size=fp_size_bytes * 8)
+    mol = indigo.loadMolecule(smiles)
+    ext_fp = mol.fingerprintExt(hex(fp)[2:], fp_size_bytes)
+
+    results = bingo.searchSimWithExtFP(mol, 0.60, 1.0, ext_fp, metric='tanimoto')
+
+    cur_mol = results.getIndigoObject()
+    while results.next():
+        print("%2d  |  %.3f  |  %s" % (results.getCurrentId(), results.getCurrentSimilarityValue(), cur_mol.smiles()))
+    results.close()
