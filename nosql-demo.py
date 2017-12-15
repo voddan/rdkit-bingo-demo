@@ -29,14 +29,15 @@ def get_custom_descriptors(df_in):
     return df_descriptors
 
 
-def pack_normalized_descriptors_to_fingerprint(descriptors: [float], bit_size=512, density=0.3) -> int:
+def pack_normalized_descriptors_to_fingerprint(descriptors: [float], byte_size=64, density=0.3) -> str:
     """
     :param descriptors: list of numbers (roughly) between 0.0 and 1.0 that characterise a molecule
-    :param bit_size: size of the fingerprint in bits
+    :param byte_size: size of the fingerprint in bytes
     :param density: approximate density of '1's in the fingerprint
-    :return: fingerprint as a number
+    :return: fingerprint as a hex string
     """
     length = len(descriptors)
+    bit_size = byte_size * 8
 
     fingerprint = [False] * bit_size
 
@@ -49,18 +50,18 @@ def pack_normalized_descriptors_to_fingerprint(descriptors: [float], bit_size=51
             hash = (hash * 0x8088405 + 1) % bit_size
             fingerprint[hash] = True
 
-    fp_binary = 0
-    for i in range(bit_size):
-        fp_binary *= 2
-        fp_binary += int(fingerprint[i])
+    str = ""
+    for i in range(0, bit_size, 4):
+        (a, b, c, d) = fingerprint[i: i + 4]
+        digit = a + 2 * b + 4 * c + 8 * d
+        str += hex(digit)[2:]
 
-    return fp_binary
+    return str
 
 
-def fp_density(fp: int) -> float:
-    str = bin(fp)
-    ones = [c for c in str if c == '1']
-    return len(ones) / len(str)
+def fp_density(fp: str) -> float:
+    ones = [c for c in fp if c == '1']
+    return len(ones) / len(fp)
 
 
 # %% example of calling custom fingerprint routine:
@@ -96,11 +97,11 @@ if __name__ == '__main__':
         smiles = df_descriptors.ix[id, 'Structure']
         descriptors = list(df_descriptors.ix[id])[2:]
         normalized = [(f - min_bounds[i]) / (max_bounds[i] - min_bounds[i]) for i, f in enumerate(descriptors)]
-        fp = pack_normalized_descriptors_to_fingerprint(normalized, density=0.3, bit_size=fp_size_bytes * 8)
+        fp = pack_normalized_descriptors_to_fingerprint(normalized, density=0.3, byte_size=fp_size_bytes)
 
         mol = indigo.loadMolecule(smiles)
         molecules += [mol]
-        ext_fp = mol.fingerprintExt(hex(fp)[2:], fp_size_bytes)
+        ext_fp = mol.fingerprintExt(fp, fp_size_bytes)
         bingo.insertWithExtFP(mol, ext_fp)
 
     print("Similarity matrix:")
@@ -117,9 +118,9 @@ if __name__ == '__main__':
 
     descriptors = list(df_descriptors.ix[query_id])[2:]
     normalized = [(f - min_bounds[i]) / (max_bounds[i] - min_bounds[i]) for i, f in enumerate(descriptors)]
-    fp = pack_normalized_descriptors_to_fingerprint(normalized, density=0.3, bit_size=fp_size_bytes * 8)
+    fp = pack_normalized_descriptors_to_fingerprint(normalized, density=0.3, byte_size=fp_size_bytes)
     mol = indigo.loadMolecule(smiles)
-    ext_fp = mol.fingerprintExt(hex(fp)[2:], fp_size_bytes)
+    ext_fp = mol.fingerprintExt(fp, fp_size_bytes)
 
     results = bingo.searchSimWithExtFP(mol, 0.60, 1.0, ext_fp, metric='tanimoto')
 
