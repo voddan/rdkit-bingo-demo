@@ -121,13 +121,48 @@ if __name__ == '__main__' and not USE_RDKIT:
     sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
 
     report_dir_path = os.path.join("reports", SIMILARITY_TYPE + '_' + str(THRESHOLD))
-    os.makedirs(report_dir_path)
+
+    if not os.path.exists(report_dir_path):
+        os.makedirs(report_dir_path)
+
+    report = open(os.path.join(report_dir_path, "report.html"), "w")
+
+    report.write("""
+    <!DOCTYPE html>
+    <html>
+    <body>
+    
+    <table style="width:100%">
+      <tr>
+        <th>Molecule</th>
+        <th>Similarity</th> 
+        <th>Smiles</th>
+      </tr>
+    """)
+
     for res in sorted_results:
         id, smiles, similarity = res
         print("%.3f" % similarity)
         print(smiles)
-        path = os.path.join(report_dir_path, str(id) + ".svg")
+        name = str(id) + ".svg"
+        path = os.path.join(report_dir_path, name)
         renderer.renderToFile(bingo.getRecordById(id), path)
+
+        report.write("""
+          <tr>
+            <th> <img width="100" height="100" src=%s> </th>
+            <th>%.3f</th> 
+            <th>%s</th>
+          </tr>
+        """ % (name, similarity, smiles))
+
+    report.write("""
+    </table>
+
+    </body>
+    </html>
+    """)
+    report.close()
 
 
 
