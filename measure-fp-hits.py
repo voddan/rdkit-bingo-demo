@@ -17,7 +17,7 @@ renderer = IndigoRenderer(indigo)
 bingo = Bingo.createDatabaseFile(indigo, os.path.join('tempdb'), 'molecule', '')
 
 FP_SIZE_BYTES = 64
-THRESHOLD = 0.05
+THRESHOLD = 0.3
 MORGAN_RADIUS = 3
 SIMILARITY_TYPE = "ecfp" + str(2 * MORGAN_RADIUS)
 
@@ -28,7 +28,7 @@ indigo.setOption("ignore-bad-valence", "true")
 indigo.setOption("render-output-format", "svg")
 indigo.setOption("similarity-type", SIMILARITY_TYPE)
 indigo.setOption("fp-sim-qwords", FP_SIZE_BYTES / 8)
-# indigo.setOption("fp-ext-enabled", True)
+indigo.setOption("fp-ext-enabled", True)
 indigo.setOption("fp-ord-qwords", 0)  # optional
 indigo.setOption("fp-tau-qwords", 0)  # optional
 indigo.setOption("fp-any-qwords", 0)  # optional
@@ -106,12 +106,14 @@ if __name__ == '__main__':
     molecule = indigo.loadMolecule(smiles)
     fingerprint = molecule.fingerprint("sim")
 
-    path = os.path.join("..", "DATA", "pubchem_slice_100k.smiles")
+    path = os.path.join("..", "DATA", "chembl_23.sdf")
 
-    for m in indigo.iterateSmilesFile(path):
+    for i, m in enumerate(indigo.iterateSDFile(path)):
         bingo.insert(m)
+        if i % 10000 == 0:
+            print("%d molecule loaded" % i)
 
-    iterator = bingo.searchSimWithExtFP(molecule, THRESHOLD, 1.0, fingerprint, metric='tanimoto')
+    iterator = bingo.searchSim(molecule, THRESHOLD, 1.0, metric='tanimoto')
     results = []
 
     cur_mol = iterator.getIndigoObject()
