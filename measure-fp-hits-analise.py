@@ -14,10 +14,10 @@ from indigo.bingo import *
 
 indigo = Indigo()
 renderer = IndigoRenderer(indigo)
-bingo = Bingo.createDatabaseFile(indigo, os.path.join('tempdb'), 'molecule', '')
+bingo = Bingo.loadDatabaseFile(indigo, os.path.join('tempdb', 'mmf_storage_ecfp6_chembl23'), '')
 
 FP_SIZE_BYTES = 64
-THRESHOLD = 0.3
+THRESHOLD = 0.7
 MORGAN_RADIUS = 3
 SIMILARITY_TYPE = "ecfp" + str(2 * MORGAN_RADIUS)
 
@@ -57,68 +57,18 @@ def write_a_match(id: str, smiles: str, similarity: float, molecule, dir_path) -
         """ % (name, similarity, smiles)
 
 
-# # RdKit FP
-# if __name__ == '__main__' and USE_RDKIT:
-#     name, smiles = root_mol_smiles[0]
-#     molecule = indigo.loadMolecule(smiles)
-#     fingerprint_rdkit = AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(smiles), MORGAN_RADIUS, FP_SIZE_BYTES * 8)
-#     fingerprint_str = str(base64.b16encode(base64.b64decode(fingerprint_rdkit.ToBase64())))[2:-1].zfill(FP_SIZE_BYTES * 2)
-#     fingerprint = molecule.fingerprintExt(fingerprint_str, FP_SIZE_BYTES)
-#     rendering = str(renderer.renderToBuffer(molecule))
-#
-#     print(fingerprint_str)
-#
-#     path = os.path.join("..", "DATA", "pubchem_slice_100k.smiles")
-#     file = open(path)
-#     smiles_list = [l.rstrip() for l in file][:10000]
-#     molecule_list = [Chem.MolFromSmiles(l) for l in smiles_list]
-#
-#     for sm in smiles_list:
-#         m = indigo.loadMolecule(sm)
-#         m_rdkit = Chem.MolFromSmiles(sm)
-#         fp_rdkit = AllChem.GetMorganFingerprintAsBitVect(m_rdkit, MORGAN_RADIUS, FP_SIZE_BYTES * 8)
-#         fp_str = str(base64.b16encode(base64.b64decode(fp_rdkit.ToBase64())))[2:-1].zfill(FP_SIZE_BYTES * 2)
-#         fp_ext = m.fingerprintExt(fp_str, FP_SIZE_BYTES)
-#         bingo.insertWithExtFP(m, fp_ext)
-#
-#     iterator = bingo.searchSimWithExtFP(molecule, THRESHOLD, 1.0, fingerprint, metric='tanimoto')
-#     results = []
-#
-#     cur_mol = iterator.getIndigoObject()
-#     while iterator.next():
-#         sm = cur_mol.smiles()
-#         mol = Chem.MolFromSmiles(sm)
-#         r = str(renderer.renderToBuffer(cur_mol))
-#         id = iterator.getCurrentId()
-#         sim = iterator.getCurrentSimilarityValue()
-#
-#         results += [(id, sm, sim)]
-#     iterator.close()
-#
-#     sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
-#
-#     for res in sorted_results:
-#         print("%.3f" % res[2])
-#         print(res[1])
-#
-
-# Indigo FP
 if __name__ == '__main__':
-    name, smiles = root_mol_smiles[0]
+    name, smiles = root_mol_smiles[1]
     molecule = indigo.loadMolecule(smiles)
     fingerprint = molecule.fingerprint("sim")
 
     path = os.path.join("..", "DATA", "chembl_23.sdf")
 
-    for i, m in enumerate(indigo.iterateSDFile(path)):
-        bingo.insert(m)
-        if i % 10000 == 0:
-            print("%d molecule loaded" % i)
-
     iterator = bingo.searchSim(molecule, THRESHOLD, 1.0, metric='tanimoto')
     results = []
 
     cur_mol = iterator.getIndigoObject()
+    i = 0
     while True:
         try:
             if not iterator.next():
@@ -134,6 +84,9 @@ if __name__ == '__main__':
         id = iterator.getCurrentId()
 
         results += [(id, sm, sim)]
+        i += 1
+        if i % 1000 == 0:
+            print("%d matches loaded" % i)
     iterator.close()
 
     sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
@@ -182,6 +135,8 @@ if __name__ == '__main__':
     </html>
     """)
     report.close()
+
+    print('%s\\report.html' % report_dir_path)
 
 
 
