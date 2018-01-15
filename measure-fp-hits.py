@@ -24,6 +24,8 @@ SIMILARITY_TYPE = "ecfp" + str(2 * MORGAN_RADIUS)
 indigo.setOption("ignore-stereochemistry-errors", "1")
 indigo.setOption("ignore-noncritical-query-features", "true")
 indigo.setOption("ignore-bad-valence", "true")
+indigo.setOption("ignore-stereochemistry-errors", "true")
+indigo.setOption("deco-ignore-errors", "true")
 
 indigo.setOption("render-output-format", "svg")
 indigo.setOption("similarity-type", SIMILARITY_TYPE)
@@ -117,7 +119,14 @@ if __name__ == '__main__':
     results = []
 
     cur_mol = iterator.getIndigoObject()
-    while iterator.next():
+    while True:
+        try:
+            if not iterator.next():
+                break
+        except Exception as e:
+            print(e)
+            continue
+
         sm = cur_mol.smiles()
         mol = indigo.loadMolecule(sm)
         r = str(renderer.renderToBuffer(mol))
@@ -149,13 +158,15 @@ if __name__ == '__main__':
     </head>
     <body>
     
-    <table style="width:100%">
+    <h1>%d matches found for %s above %f threshold in %s</h1>
+    
+    <table style="width:100%%">
       <tr>
         <th>Molecule</th>
         <th>Similarity</th> 
         <th>Smiles</th>
       </tr>
-    """)
+    """ % (len(sorted_results), name, THRESHOLD, path))
 
     report.write(write_a_match(name, smiles, 1.0, molecule, report_dir_path))
     for res in sorted_results:
