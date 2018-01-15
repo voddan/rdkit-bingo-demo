@@ -43,6 +43,18 @@ root_mol_smiles = [
     ]
 
 
+def write_a_match(id: str, smiles: str, similarity: float, molecule, dir_path) -> str:
+    name = str(id) + ".svg"
+    path = os.path.join(dir_path, name)
+    renderer.renderToFile(molecule, path)
+    return """
+          <tr>
+            <th> <img width="100" height="100" src=%s> </th>
+            <th>%.3f</th> 
+            <th>%s</th>
+          </tr>
+        """ % (name, similarity, smiles)
+
 
 # RdKit FP
 if __name__ == '__main__' and USE_RDKIT:
@@ -94,7 +106,6 @@ if __name__ == '__main__' and not USE_RDKIT:
     name, smiles = root_mol_smiles[0]
     molecule = indigo.loadMolecule(smiles)
     fingerprint = molecule.fingerprint("sim")
-    # rendering = str(renderer.renderToBuffer(molecule))
 
     path = os.path.join("..", "DATA", "pubchem_slice_100k.smiles")
     file = open(path)
@@ -120,7 +131,7 @@ if __name__ == '__main__' and not USE_RDKIT:
 
     sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
 
-    report_dir_path = os.path.join("reports", SIMILARITY_TYPE + '_' + str(THRESHOLD))
+    report_dir_path = os.path.join("reports", SIMILARITY_TYPE + '_' + name + '_' + str(THRESHOLD))
 
     if not os.path.exists(report_dir_path):
         os.makedirs(report_dir_path)
@@ -130,6 +141,14 @@ if __name__ == '__main__' and not USE_RDKIT:
     report.write("""
     <!DOCTYPE html>
     <html>
+    <head>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+    </style>
+    </head>
     <body>
     
     <table style="width:100%">
@@ -140,21 +159,12 @@ if __name__ == '__main__' and not USE_RDKIT:
       </tr>
     """)
 
+    report.write(write_a_match(name, smiles, 1.0, molecule, report_dir_path))
     for res in sorted_results:
         id, smiles, similarity = res
         print("%.3f" % similarity)
         print(smiles)
-        name = str(id) + ".svg"
-        path = os.path.join(report_dir_path, name)
-        renderer.renderToFile(bingo.getRecordById(id), path)
-
-        report.write("""
-          <tr>
-            <th> <img width="100" height="100" src=%s> </th>
-            <th>%.3f</th> 
-            <th>%s</th>
-          </tr>
-        """ % (name, similarity, smiles))
+        report.write(write_a_match(id, smiles, similarity, bingo.getRecordById(id), report_dir_path))
 
     report.write("""
     </table>
