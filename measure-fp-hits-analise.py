@@ -14,7 +14,7 @@ from indigo.bingo import *
 
 indigo = Indigo()
 renderer = IndigoRenderer(indigo)
-bingo = Bingo.loadDatabaseFile(indigo, os.path.join('tempdb', 'mmf_storage_ecfp6_chembl23'), '')
+bingo = Bingo.loadDatabaseFile(indigo, os.path.join('DB', 'chembl_23.sdf', 'indigo', 'ecfp6'), '')
 
 FP_SIZE_BYTES = 64
 THRESHOLD = 0.7
@@ -58,85 +58,86 @@ def write_a_match(id: str, smiles: str, similarity: float, molecule, dir_path) -
 
 
 if __name__ == '__main__':
-    name, smiles = root_mol_smiles[1]
-    molecule = indigo.loadMolecule(smiles)
-    fingerprint = molecule.fingerprint("sim")
+    for name, smiles in root_mol_smiles:
 
-    path = os.path.join("..", "DATA", "chembl_23.sdf")
+        molecule = indigo.loadMolecule(smiles)
+        fingerprint = molecule.fingerprint("sim")
 
-    iterator = bingo.searchSim(molecule, THRESHOLD, 1.0, metric='tanimoto')
-    results = []
+        path = os.path.join("..", "DATA", "chembl_23.sdf")
 
-    cur_mol = iterator.getIndigoObject()
-    i = 0
-    while True:
-        try:
-            if not iterator.next():
-                break
-        except Exception as e:
-            print(e)
-            continue
+        iterator = bingo.searchSim(molecule, THRESHOLD, 1.0, metric='tanimoto')
+        results = []
 
-        sm = cur_mol.smiles()
-        mol = indigo.loadMolecule(sm)
-        r = str(renderer.renderToBuffer(mol))
-        sim = iterator.getCurrentSimilarityValue()
-        id = iterator.getCurrentId()
+        cur_mol = iterator.getIndigoObject()
+        i = 0
+        while True:
+            try:
+                if not iterator.next():
+                    break
+            except Exception as e:
+                print(e)
+                continue
 
-        results += [(id, sm, sim)]
-        i += 1
-        if i % 1000 == 0:
-            print("%d matches loaded" % i)
-    iterator.close()
+            sm = cur_mol.smiles()
+            mol = indigo.loadMolecule(sm)
+            r = str(renderer.renderToBuffer(mol))
+            sim = iterator.getCurrentSimilarityValue()
+            id = iterator.getCurrentId()
 
-    sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
+            results += [(id, sm, sim)]
+            i += 1
+            if i % 1000 == 0:
+                print("%d matches loaded" % i)
+        iterator.close()
 
-    report_dir_path = os.path.join("reports", SIMILARITY_TYPE + '_' + name + '_' + str(THRESHOLD))
+        sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
 
-    if not os.path.exists(report_dir_path):
-        os.makedirs(report_dir_path)
+        report_dir_path = os.path.join("reports", 'chembl23', 'ecfp6', 'indigo', name + '_' + str(THRESHOLD))
 
-    report = open(os.path.join(report_dir_path, "report.html"), "w")
+        if not os.path.exists(report_dir_path):
+            os.makedirs(report_dir_path)
 
-    report.write("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <style>
-        table, th, td {
-            border: 1px solid black;
-            border-collapse: collapse;
-        }
-    </style>
-    </head>
-    <body>
+        report = open(os.path.join(report_dir_path, "report.html"), "w")
+
+        report.write("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            table, th, td {
+                border: 1px solid black;
+                border-collapse: collapse;
+            }
+        </style>
+        </head>
+        <body>
+        
+        <h1>%d matches found for %s above %f threshold in %s</h1>
+        
+        <table style="width:100%%">
+          <tr>
+            <th>Molecule</th>
+            <th>Similarity</th> 
+            <th>Smiles</th>
+          </tr>
+        """ % (len(sorted_results), name, THRESHOLD, path))
+
+        report.write(write_a_match(name, smiles, 1.0, molecule, report_dir_path))
+        for res in sorted_results:
+            id, smiles, similarity = res
+            print("%.3f" % similarity)
+            print(smiles)
+            report.write(write_a_match(id, smiles, similarity, bingo.getRecordById(id), report_dir_path))
+
+        report.write("""
+        </table>
     
-    <h1>%d matches found for %s above %f threshold in %s</h1>
-    
-    <table style="width:100%%">
-      <tr>
-        <th>Molecule</th>
-        <th>Similarity</th> 
-        <th>Smiles</th>
-      </tr>
-    """ % (len(sorted_results), name, THRESHOLD, path))
+        </body>
+        </html>
+        """)
+        report.close()
 
-    report.write(write_a_match(name, smiles, 1.0, molecule, report_dir_path))
-    for res in sorted_results:
-        id, smiles, similarity = res
-        print("%.3f" % similarity)
-        print(smiles)
-        report.write(write_a_match(id, smiles, similarity, bingo.getRecordById(id), report_dir_path))
-
-    report.write("""
-    </table>
-
-    </body>
-    </html>
-    """)
-    report.close()
-
-    print('%s\\report.html' % report_dir_path)
+        print('%s\\report.html' % report_dir_path)
 
 
 
