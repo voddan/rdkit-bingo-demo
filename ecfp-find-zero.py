@@ -21,16 +21,22 @@ indigo.setOption("fp-any-qwords", 0)  # optional
 
 
 if __name__ == '__main__':
-    path = os.path.join("..", "DATA", "chembl_23.sdf")
+    root = indigo.loadMolecule("Cc1sc2c(C(=N[C@@H](CC(=O)OC(C)(C)C)c3nnc(C)n23)c4ccc(Cl)cc4)c1C")
+    root_fp = root.fingerprint("sim")
 
-    all_zeros = "0" * (FP_SIZE_BYTES * 2)
+    print("JQ1")
+    print(root_fp.toString())
+
+    path = os.path.join("..", "DATA", "chembl_23.sdf")
 
     for i, molecule in enumerate(indigo.iterateSDFile(path)):
         fingerprint = molecule.fingerprint("sim")
-        str = fingerprint.toString()
 
-        if str == all_zeros:
+        similarity = indigo.similarity(root_fp, fingerprint, metrics="tanimoto")
+
+        if similarity == 0:
             print("#%8d: %s" % (i, molecule.smiles()))
+            print(fingerprint.toString())
 
         if i % 10000 == 0:
             print("%d molecules have been scanned" % i)
