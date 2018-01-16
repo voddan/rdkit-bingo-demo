@@ -1,6 +1,8 @@
 import base64
 from itertools import islice, starmap
 
+import rdkit
+import toolz
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
@@ -16,7 +18,7 @@ FP_SIZE_BYTES = 64
 THRESHOLD = 0.3
 MORGAN_RADIUS = 3
 SIMILARITY_TYPE = "ecfp" + str(2 * MORGAN_RADIUS)
-IMPLEMENTATION = "rdkit"
+IMPLEMENTATION = "rdkit2"
 
 indigo = Indigo()
 
@@ -42,6 +44,18 @@ root_mol_smiles = [
     ]
 
 
+def rdkit_fingerprint_to16(fp: rdkit.DataStructs.cDataStructs.ExplicitBitVect) -> str:
+    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F']
+
+    str = ""
+    for q in toolz.itertoolz.partition(4, list(fp)):
+        a, b, c, d = q
+        num = a + b * 2 + c * 4 + d * 8
+        str += digits[num]
+
+    return str
+
+
 if __name__ == '__main__':
     db_path = os.path.join('DB', 'chembl_23.sdf', IMPLEMENTATION, SIMILARITY_TYPE)
 
@@ -59,7 +73,7 @@ if __name__ == '__main__':
     for i, m in enumerate(indigo.iterateSDFile(path)):
         try:
             fingerprint_rdkit = AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(smiles), MORGAN_RADIUS, FP_SIZE_BYTES * 8)
-            fingerprint_str = str(base64.b16encode(base64.b64decode(fingerprint_rdkit.ToBase64())))[2:-1].zfill(FP_SIZE_BYTES * 2)
+            fingerprint_str = rdkit_fingerprint_to16(fingerprint_rdkit)
             fingerprint = m.fingerprintExt(fingerprint_str, FP_SIZE_BYTES)
         except Exception as e:
             print(e)

@@ -1,6 +1,8 @@
 import base64
 from itertools import islice, starmap
 
+import rdkit
+import toolz
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
@@ -14,10 +16,10 @@ from indigo.bingo import *
 
 indigo = Indigo()
 renderer = IndigoRenderer(indigo)
-bingo = Bingo.loadDatabaseFile(indigo, os.path.join('DB', 'chembl_23.sdf', 'indigo', 'ecfp6'), '')
+bingo = Bingo.loadDatabaseFile(indigo, os.path.join('DB', 'chembl_23.sdf', 'rdkit2', 'ecfp6'), '')
 
 FP_SIZE_BYTES = 64
-THRESHOLD = 0.7
+THRESHOLD = 0.18
 MORGAN_RADIUS = 3
 SIMILARITY_TYPE = "ecfp" + str(2 * MORGAN_RADIUS)
 
@@ -44,28 +46,58 @@ root_mol_smiles = [
     ]
 
 
+def rdkit_fingerprint_to16(fp: rdkit.DataStructs.cDataStructs.ExplicitBitVect) -> str:
+    digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F']
+
+    str = ""
+    for q in toolz.itertoolz.partition(4, list(fp)):
+        a, b, c, d = q
+        num = a + b * 2 + c * 4 + d * 8
+        str += digits[num]
+
+    return str
+
+
 def write_a_match(id: str, smiles: str, similarity: float, molecule, dir_path) -> str:
     name = str(id) + ".svg"
     path = os.path.join(dir_path, name)
-    renderer.renderToFile(molecule, path)
-    return """
-          <tr>
-            <th> <img width="100" height="100" src=%s> </th>
-            <th>%.3f</th> 
-            <th>%s</th>
-          </tr>
-        """ % (name, similarity, smiles)
+    try:
+        renderer.renderToFile(molecule, path)
+        return """
+              <tr>
+                <th> <img width="100" height="100" src=%s> </th>
+                <th>%.3f</th> 
+                <th>%s</th>
+              </tr>
+            """ % (name, similarity, smiles)
+    except IndigoException as e:
+        print(e)
+        return """
+              <tr>
+                <th> --- </th>
+                <th>%.3f</th> 
+                <th>%s</th>
+              </tr>
+            """ % (similarity, smiles)
 
 
 if __name__ == '__main__':
     for name, smiles in root_mol_smiles:
 
         molecule = indigo.loadMolecule(smiles)
-        fingerprint = molecule.fingerprint("sim")
 
         path = os.path.join("..", "DATA", "chembl_23.sdf")
 
-        iterator = bingo.searchSim(molecule, THRESHOLD, 1.0, metric='tanimoto')
+        try:
+            fingerprint_rdkit = AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(smiles), MORGAN_RADIUS, FP_SIZE_BYTES * 8)
+            fingerprint_str = rdkit_fingerprint_to16(fingerprint_rdkit)
+            fingerprint = molecule.fingerprintExt(fingerprint_str, FP_SIZE_BYTES)
+        except Exception as e:
+            print("ERROR on %s" % name)
+            print(e)
+            continue
+
+        iterator = bingo.searchSimWithExtFP(molecule, THRESHOLD, 1.0, fingerprint, metric='tanimoto')
         results = []
 
         cur_mol = iterator.getIndigoObject()
@@ -80,7 +112,6 @@ if __name__ == '__main__':
 
             sm = cur_mol.smiles()
             mol = indigo.loadMolecule(sm)
-            r = str(renderer.renderToBuffer(mol))
             sim = iterator.getCurrentSimilarityValue()
             id = iterator.getCurrentId()
 
@@ -88,11 +119,14 @@ if __name__ == '__main__':
             i += 1
             if i % 1000 == 0:
                 print("%d matches loaded" % i)
+                if i > 5000:
+                    print("too much matches for %s" % name)
+                    break
         iterator.close()
 
         sorted_results = sorted(results, key=lambda result: result[2], reverse=True)
 
-        report_dir_path = os.path.join("reports", 'chembl23', 'ecfp6', 'indigo', name + '_' + str(THRESHOLD))
+        report_dir_path = os.path.join("reports", 'chembl23', 'ecfp6', 'rdkit2', name + '_' + str(THRESHOLD))
 
         if not os.path.exists(report_dir_path):
             os.makedirs(report_dir_path)
